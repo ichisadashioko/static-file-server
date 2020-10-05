@@ -59,39 +59,29 @@ g_extensions_map.update({
 })
 
 # dlt -> directory listing template
-g_dlt_filepath = os.path.join(
-    g_script_dir,
-    'statics',
-    'directory-listing-template.html',
-)
-
-if not os.path.exists(g_dlt_filepath):
-    raise Exception((
-        f'-> {g_dlt_filepath}\n'
-        f'Directory listing template does not exist!'
-    ))
-
-g_dlt = open(
-    g_dlt_filepath,
-    mode='r',
-    encoding='utf-8',
-).read()
-
 g_dlt_displayname_placeholder = r'{%displayname%}'
-
-if not g_dlt_displayname_placeholder in g_dlt:
-    raise Exception((
-        f'-> {g_dlt_filepath}\n'
-        f'Directory listing template does not contain displayname placeholder string ({g_dlt_displayname_placeholder})!'
-    ))
-
 g_dlt_body_placeholder = r'{%body%}'
 
-if not g_dlt_body_placeholder in g_dlt:
-    raise Exception((
-        f'-> {g_dlt_filepath}\n'
-        f'Directory listing template does not contain displayname placeholder string ({g_dlt_body_placeholder})!'
-    ))
+g_dlt = f'''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory listing for {g_dlt_displayname_placeholder}</title>
+    <style>
+        * {{
+            color: white;
+            background-color: black;
+            font-family: 'Courier New', Courier, monospace;
+        }}
+    </style>
+</head>
+<body>
+    {g_dlt_body_placeholder}
+</body>
+</html>
+'''
 
 
 class StaticFileServer(BaseHTTPRequestHandler):
