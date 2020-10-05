@@ -45,11 +45,12 @@ if not mimetypes.inited:
 g_extensions_map = mimetypes.types_map.copy()
 g_extensions_map.update({
     '': 'application/octet-stream',  # default
-    # '.html': 'text/html',
-    # '.htm': 'text/html',
-    # '.css': 'text/css',
+    '.html': 'text/html',
+    '.htm': 'text/html',
+    '.css': 'text/css',
     # TODO flag to enable or disable ES module
     '.js': 'application/javascript',
+    '.es': 'application/ecmascript',
     '.py': 'text/plain',
     '.c': 'text/plain',
     '.h': 'text/plain',
