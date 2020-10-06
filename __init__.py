@@ -12,79 +12,21 @@ import email.utils
 import datetime
 import json
 from typing import List
-import argparse
 
 import http
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
 
 import urllib
 import urllib.parse
 
-parser = argparse.ArgumentParser()
-
-parser.add_argument('port', action='store', nargs='?', default=8080, type=int)
-parser.add_argument('--path', type=str, required=False, default='.')
-
-args = parser.parse_args()
-print(args)
-
-g_hostname = '0.0.0.0'
-g_server_port = args.port
-g_served_directory = args.path
-
-if not os.path.exists(g_served_directory):
-    raise Exception(g_served_directory, 'does not exist!')
-
-g_script_dir, script_filename = os.path.split(__file__)
-if len(g_script_dir) == 0:
-    g_script_dir = '.'
-
-if not mimetypes.inited:
-    mimetypes.init()  # try to read system mime.tyeps
-
-g_extensions_map = mimetypes.types_map.copy()
-g_extensions_map.update({
-    '': 'application/octet-stream',  # default
-    '.html': 'text/html',
-    '.htm': 'text/html',
-    '.css': 'text/css',
-    # TODO flag to enable or disable ES module
-    '.js': 'application/javascript',
-    '.es': 'application/ecmascript',
-    '.py': 'text/plain',
-    '.c': 'text/plain',
-    '.h': 'text/plain',
-    '.tsv': 'text/plain',
-    '.txt': 'text/plain',
-})
-
-# dlt -> directory listing template
-g_dlt_displayname_placeholder = r'{%displayname%}'
-g_dlt_body_placeholder = r'{%body%}'
-
-g_dlt = f'''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Directory listing for {g_dlt_displayname_placeholder}</title>
-    <style>
-        * {{
-            color: white;
-            background-color: black;
-            font-family: 'Courier New', Courier, monospace;
-        }}
-    </style>
-</head>
-<body>
-    {g_dlt_body_placeholder}
-</body>
-</html>
-'''
-
 
 class StaticFileServer(BaseHTTPRequestHandler):
+
+    def __init__(self, *args, directory=None, **kwargs):
+        if directory is None:
+            directory = os.getcwd()
+        self.directory = directory
+        super().__init__(*args, **kwargs)
 
     def translate_path(self, path: str):
         words = path.split('/')
@@ -97,7 +39,7 @@ class StaticFileServer(BaseHTTPRequestHandler):
         words = map(lambda word: urllib.parse.unquote(word), words)
 
         path = '/'
-        local_path = g_served_directory
+        local_path = self.directory
 
         for word in words:
             if os.path.dirname(word) or (word in (os.curdir, os.pardir)):
@@ -113,21 +55,11 @@ class StaticFileServer(BaseHTTPRequestHandler):
         try:
             file_list = os.listdir(local_path)
         except OSError:
-            self.send_error(http.HTTPStatus.NOT_FOUND,
-                            'No permission to list directory!')
+            self.send_error(http.HTTPStatus.NOT_FOUND, 'No permission to list directory!')
             return None
 
         # TODO options to sort by name, creation date, or last modified date
-
-        # TODO learn about how quote=False will affect us
-        encoded_displayname = html.escape(displayname, quote=False)
-        document = g_dlt.replace(
-            g_dlt_displayname_placeholder, encoded_displayname)
-
-        body = []
-        body.append(f'<h1>Directory listing for {encoded_displayname}</h1>')
-        body.append(f'<hr>')
-        body.append(f'<ul>')
+        document = ['<pre>']
 
         for child_filename in file_list:
             child_filepath = os.path.join(local_path, child_filename)
@@ -139,16 +71,12 @@ class StaticFileServer(BaseHTTPRequestHandler):
             if os.path.islink(child_filepath):
                 child_displayname = child_filename + '@'
 
-            quoted_linkname = urllib.parse.quote(
-                linkname, errors='surrogatepass')
-            html_encoded_child_displayname = html.escape(
-                child_displayname, quote=False)
-            body.append(
-                f'<li><a href="{quoted_linkname}">{html_encoded_child_displayname}</a></li>')
+            quoted_linkname = urllib.parse.quote(linkname, errors='surrogatepass')
+            escaped_displayname = html.escape(child_displayname)
+            document.append(f'<a href="{quoted_linkname}">{escaped_displayname}</a>')
 
-        body.append(f'</ul>')
-        body = '\n'.join(body)
-        document = document.replace(g_dlt_body_placeholder, body)
+        document.append('</pre>')
+        document = '\n'.join(document)
 
         encoded_document = document.encode('utf-8', 'surrogateescape')
         f = io.BytesIO()
@@ -232,6 +160,7 @@ class StaticFileServer(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', ctype+';charset=UTF-8')
             else:
                 self.send_header('Content-Type', ctype)
+            print(ctype)
             # TODO handle symbolic link
             self.send_header('Content-Length', str(fs.st_size))
             self.send_header(
@@ -250,14 +179,14 @@ class StaticFileServer(BaseHTTPRequestHandler):
 
     def guess_type(self, path: str):
         base, ext = posixpath.splitext(path)
-        if ext in g_extensions_map:
-            return g_extensions_map[ext]
+        if ext in self.extensions_map:
+            return self.extensions_map[ext]
 
         ext = ext.lower()
-        if ext in g_extensions_map:
-            return g_extensions_map[ext]
+        if ext in self.extensions_map:
+            return self.extensions_map[ext]
         else:
-            return g_extensions_map['']
+            return self.extensions_map['']
 
     def do_GET(self):
         f = self.send_head()
@@ -287,13 +216,23 @@ class StaticFileServer(BaseHTTPRequestHandler):
             finally:
                 f.close()
 
+    if not mimetypes.inited:
+        mimetypes.init()  # try to read system mime.tyeps
 
-web_server = HTTPServer((g_hostname, g_server_port), StaticFileServer)
-print(f'Serving server at http://localhost:{g_server_port}')
-
-try:
-    web_server.serve_forever()
-except KeyboardInterrupt:
-    pass
-
-web_server.server_close()
+    extensions_map = mimetypes.types_map.copy()
+    extensions_map.update({
+        '': 'application/octet-stream',  # default
+        '.html': 'text/html',
+        '.htm': 'text/html',
+        '.css': 'text/css',
+        # TODO flag to enable or disable ES module
+        '.js': 'application/javascript',
+        '.es': 'application/ecmascript',
+        '.py': 'text/plain',
+        '.c': 'text/plain',
+        '.h': 'text/plain',
+        '.tsv': 'text/plain',
+        '.txt': 'text/plain',
+        '.cfg': 'text/plain',
+        '.gitconfig': 'text/plain',
+    })
