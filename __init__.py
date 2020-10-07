@@ -201,20 +201,8 @@ class StaticFileServer(BaseHTTPRequestHandler):
         All the API will be accessed via POST method so that we can
         still keep the static file serving.
         """
-        split_result = urllib.parse.urlsplit(self.path)
-        path = split_result.path
-
-        if path == '/api/all':
-            f = self.list_all()
-        else:
-            self.send_error(http.HTTPStatus.NOT_FOUND,
-                            'API endpoint does not exist!')
-            f = None
-        if f:
-            try:
-                shutil.copyfileobj(f, self.wfile)
-            finally:
-                f.close()
+        # TODO override all these do_XXX method for your application
+        self.send_error(http.HTTPStatus.NOT_FOUND, 'API endpoint does not exist!')
 
     if not mimetypes.inited:
         mimetypes.init()  # try to read system mime.tyeps

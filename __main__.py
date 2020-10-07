@@ -7,7 +7,7 @@ import http
 import http.server
 from functools import partial
 
-from __init__ import StaticFileServer
+from .__init__ import StaticFileServer
 
 parser = argparse.ArgumentParser()
 
